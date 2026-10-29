@@ -27,7 +27,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"pfm", origin, size)) {
+  // 标题 = "云坞"（UCN 转义，源码保持 ASCII，不受编译器代码页影响）
+  if (!window.Create(L"\u4E91\u575E", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(false);

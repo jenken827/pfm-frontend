@@ -1,7 +1,8 @@
-# pfm-frontend
+# pfm-frontend（云坞 / CloudDock）
 
-pfm 的 Flutter 客户端（Android / iOS / Windows / macOS / Linux / Web），以及随客户端分发的
-BLAKE3 原生加速库。
+云坞（英文名 CloudDock）是 pfm 的 Flutter 客户端（Android / iOS / Windows / macOS / Linux / Web），
+以及随客户端分发的 BLAKE3 原生加速库。仓库名、包名（`com.shifangyuan.pfm`）保持 `pfm` 不变——
+改名只影响用户看到的名字。
 
 后端在 [`pfm`](https://github.com/jenken827/pfm)（Go，REST/JSON）；应用侧 protobuf 数据结构
 在 [`pfm-proto`](https://github.com/jenken827/pfm-proto)，以 `package:pfm_proto` 的形式依赖。
@@ -74,13 +75,13 @@ git tag v1.2.3 && git push origin v1.2.3
 ```
 pfm_<版本>_<YYYYMMDD>-<短commit8>_arm64-v8a.apk          # Android，arm64 手机直接装
 pfm_<版本>_<YYYYMMDD>-<短commit8>_windows-x64-setup.exe  # Windows 安装包（双击安装，装到当前用户目录）
-pfm_<版本>_<YYYYMMDD>-<短commit8>_windows-x64.zip        # Windows 便携版，解压后跑 Release/pfm.exe
+pfm_<版本>_<YYYYMMDD>-<短commit8>_windows-x64.zip        # Windows 便携版，解压后跑 Release/clouddock.exe
 ```
 
 要点：
 
 - Windows 产物有两个：`setup.exe` 是 Inno Setup 安装包（单文件、免管理员），`zip` 是便携版；
-  安装包脚本在 `windows/installer/pfm.iss`，`AppId` 发布后不能再改（否则旧版卸不掉）。
+  安装包脚本在 `windows/installer/clouddock.iss`，`AppId` 发布后不能再改（否则旧版卸不掉）。
 - tag 与 `pubspec.yaml` 的版本对不上会直接失败；版本号里的 `+<构建号>` 由 CI 用当天日期填，
   与 `./dev.sh` 一致。
 - Android 用仓库 Secret 里的发布密钥签名，**缺 Secret 就失败**（不会退回 debug 签名）；构建后

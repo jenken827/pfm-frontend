@@ -143,6 +143,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   Widget _buildAppHeader() {
+    final al = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
@@ -162,14 +163,14 @@ class _AboutPageState extends State<AboutPage> {
           ),
           const SizedBox(height: PfmSpacing.lg),
           Text(
-            _packageInfo?.appName ?? 'PFM',
+            _packageInfo?.appName ?? al.app_name,
             style: PfmTypography.displayMedium.copyWith(
               color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: PfmSpacing.xs),
           Text(
-            'Personal File Manager',
+            al.about_appTitle,
             style: PfmTypography.bodyMedium.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -240,7 +241,7 @@ class _AboutPageState extends State<AboutPage> {
       child: Column(
         children: [
           Text(
-            '© 2026 PFM',
+            '© 2026 ${al.app_name}',
             style: PfmTypography.labelSmall.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),

@@ -38,7 +38,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
     
     <application
-            android:label="pfm"
+            android:label="@string/app_name"
             android:name="com.shifangyuan.pfm.PfmApplication"
             android:icon="@mipmap/ic_launcher">
         <activity

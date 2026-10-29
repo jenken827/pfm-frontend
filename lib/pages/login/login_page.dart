@@ -163,7 +163,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 // Title
                 Text(
-                  'Personal File Manager',
+                  al.app_name,
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.onSurface,

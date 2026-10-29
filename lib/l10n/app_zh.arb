@@ -1407,5 +1407,9 @@
     "webdavAccount_deleted": "账号已删除",
     "webdavAccount_deleteFailed": "删除账号失败",
     "webdavAccount_pathNote": "客户端中的路径相对绑定目录：绑定 /webdav/abc 且客户端填 readany 时，实际访问 /webdav/abc/readany",
-    "webdavAccount_isolationNote": "每个账号相互隔离，只能管理绑定目录内的文件"
+    "webdavAccount_isolationNote": "每个账号相互隔离，只能管理绑定目录内的文件",
+    "app_name": "云坞",
+    "@app_name": {
+        "description": "应用显示名称"
+    }
 }

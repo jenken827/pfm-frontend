@@ -278,7 +278,7 @@ jobs:
             "/DSourceDir=$(cygpath -w "$PWD/build/windows/x64/runner/Release")" \
             "/DOutputDir=$(cygpath -w "$PWD/dist")" \
             "/DOutputBase=${{ needs.meta.outputs.name }}_windows-x64-setup" \
-            windows/installer/pfm.iss
+            windows/installer/clouddock.iss
           ls -l dist
 
       - name: 上传构建产物
@@ -335,7 +335,7 @@ jobs:
             echo
             echo "**Android**：\`${{ needs.meta.outputs.name }}_arm64-v8a.apk\`（arm64-v8a，arm64 手机直接安装）"
             echo "**Windows（安装包）**：\`${{ needs.meta.outputs.name }}_windows-x64-setup.exe\`（双击安装，装到当前用户目录）"
-            echo "**Windows（便携版）**：\`${{ needs.meta.outputs.name }}_windows-x64.zip\`（解压后运行 \`Release/pfm.exe\`）"
+            echo "**Windows（便携版）**：\`${{ needs.meta.outputs.name }}_windows-x64.zip\`（解压后运行 \`Release/clouddock.exe\`）"
             echo
             echo "签名证书 SHA-256：\`${ANDROID_CERT_SHA256}\`"
             if [ -n "$prev" ]; then

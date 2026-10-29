@@ -1103,5 +1103,9 @@
     "webdavAccount_deleted": "Account deleted",
     "webdavAccount_deleteFailed": "Failed to delete account",
     "webdavAccount_pathNote": "Client paths are relative to the bound folder: bound to /webdav/abc with folder readany means /webdav/abc/readany",
-    "webdavAccount_isolationNote": "Accounts are isolated: each one can only manage files inside its bound folder"
+    "webdavAccount_isolationNote": "Accounts are isolated: each one can only manage files inside its bound folder",
+    "app_name": "CloudDock",
+    "@app_name": {
+        "description": "应用显示名称"
+    }
 }

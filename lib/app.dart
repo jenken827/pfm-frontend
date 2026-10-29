@@ -76,6 +76,7 @@ class _AppState extends State<App> with WindowListener, WidgetsBindingObserver {
           value: widget.fmRepository,
           child: MaterialApp.router(
             debugShowCheckedModeBanner: false,
+            onGenerateTitle: (ctx) => AppLocalizations.of(ctx).app_name,
             theme: AppTheme(themeName: ls.currentThemeName).light(),
             darkTheme: AppTheme(themeName: ls.currentThemeName).dark(),
             themeMode: tl.themeMode,

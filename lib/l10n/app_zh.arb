@@ -565,7 +565,6 @@
     "theme_color": "主题颜色",
     "about_title": "关于",
     "about_version": "版本号",
-    "about_buildNumber": "构建号",
     "about_packageName": "包名",
     "about_appInfo": "应用信息",
     "about_appName": "应用名称",

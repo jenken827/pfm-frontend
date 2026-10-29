@@ -11,8 +11,20 @@ class AboutPage extends StatefulWidget {
   State<AboutPage> createState() => _AboutPageState();
 }
 
+/// 构建标识（`<构建日期>-<短 commit>`），构建期由 `--dart-define=PFM_BUILD=...` 注入。
+///
+/// 不直接用 PackageInfo.buildNumber：--split-per-abi 会把它改写成
+/// `abiIndex*1000+base`，日期语义丢失；源码里也不放占位符，没注入就整段不显示。
+const _buildId = String.fromEnvironment('PFM_BUILD');
+
 class _AboutPageState extends State<AboutPage> {
   PackageInfo? _packageInfo;
+
+  /// 版本号；有构建标识时拼在后面，一处就能看出装的是哪次构建。
+  String _versionLabel(AppLocalizations al) {
+    final version = _packageInfo?.version ?? al.common_loading;
+    return _buildId.isEmpty ? version : '$version ($_buildId)';
+  }
 
   @override
   void initState() {
@@ -75,18 +87,7 @@ class _AboutPageState extends State<AboutPage> {
                     iconBackground: PfmColors.primarySurface,
                     iconColor: PfmColors.primary,
                     title: al.about_version,
-                    subtitle: _packageInfo?.version ?? al.common_loading,
-                  ),
-                  const Divider(height: 1, indent: 56),
-                  _buildInfoTile(
-                    icon: Icons.build_outlined,
-                    iconBackground: PfmColors.archiveSurface,
-                    iconColor: PfmColors.archive,
-                    title: al.about_buildNumber,
-                    // 不直接显示 PackageInfo.buildNumber:--split-per-abi 会把它
-                    // override 为 abiIndex*1000+base(日期语义丢失),故构建时由
-                    // dev.sh 注入真实日期 {{build-number}}
-                    subtitle: '{{build-number}}-{{commit-hash}}',
+                    subtitle: _versionLabel(al),
                   ),
                   const Divider(height: 1, indent: 56),
                   _buildInfoTile(

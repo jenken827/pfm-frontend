@@ -55,8 +55,8 @@ show_help() {
 EOF
 }
 
-# 关于页面路径
-ABOUT_FILE="lib/pages/settings/about_page.dart"
+# 构建标识：<构建日期>-<短 commit>，构建期注入 About 页（源码里不放占位符）
+BUILD_ID="$(date +%Y%m%d)-$(git rev-parse --short=8 HEAD 2>/dev/null || echo unknown)"
 
 
 # 检查必要的命令是否存在
@@ -175,48 +175,6 @@ restore_build_number() {
         cp pubspec.yaml.backup pubspec.yaml
         rm pubspec.yaml.backup
         echo "✅ 构建号已恢复"
-    fi
-}
-
-# 替换about页面中的commit hash占位符
-replace_commit_hash_in_about() {
-    if [[ ! -f "$ABOUT_FILE" ]]; then
-        echo "⚠️  警告: about页面文件未找到: $ABOUT_FILE"
-        return 0
-    fi
-
-    # 获取当前commit hash的前8位
-    COMMIT_HASH=$(git rev-parse --short=8 HEAD)
-    # 获取构建日期(YYYYMMDD),注入 about 页面构建号
-    BUILD_DATE=$(date +%Y%m%d)
-
-    # 备份about页面文件
-    cp "$ABOUT_FILE" "$ABOUT_FILE.backup"
-    echo "✅ 已备份about页面文件"
-
-    # 替换{{commit-hash}}和{{build-number}}占位符
-    # 注:不直接用 PackageInfo.buildNumber --split-per-abi 会把它 override 为
-    # abiIndex*1000+base(如 20262817),日期语义丢失,故构建时注入真实日期
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        if command -v gsed &> /dev/null; then
-            gsed -i -e "s/{{commit-hash}}/$COMMIT_HASH/g" -e "s/{{build-number}}/$BUILD_DATE/g" "$ABOUT_FILE"
-        else
-            sed -i '' -e "s/{{commit-hash}}/$COMMIT_HASH/g" -e "s/{{build-number}}/$BUILD_DATE/g" "$ABOUT_FILE"
-        fi
-    else
-        sed -i -e "s/{{commit-hash}}/$COMMIT_HASH/g" -e "s/{{build-number}}/$BUILD_DATE/g" "$ABOUT_FILE"
-    fi
-
-    echo "✅ About页面中的commit hash已替换为: $COMMIT_HASH, 构建日期: $BUILD_DATE"
-}
-
-# 恢复about页面中的commit hash占位符
-restore_commit_hash_in_about() {
-    if [[ -f "$ABOUT_FILE.backup" ]]; then
-        echo "🔄 恢复about页面中的commit hash占位符..."
-        cp "$ABOUT_FILE.backup" "$ABOUT_FILE"
-        rm "$ABOUT_FILE.backup"
-        echo "✅ About页面已恢复"
     fi
 }
 
@@ -512,14 +470,14 @@ build_android_apk() {
     fi
     ensure_sqlite3_libs
 
-    if ! puro flutter build apk --release --split-per-abi --no-tree-shake-icons --target-platform android-arm64 --split-debug-info=build/symbols/android; then
+    if ! puro flutter build apk --release --split-per-abi --no-tree-shake-icons --target-platform android-arm64 --split-debug-info=build/symbols/android --dart-define=PFM_BUILD="$BUILD_ID"; then
         echo "⚠️ 构建失败，再次填充 sqlite3 缓存后重试..."
         # 再次清理并填充
         if [ -d "$HOOK_SHARED" ]; then
             rm -rf "$HOOK_SHARED"/download-* 2>/dev/null
         fi
         ensure_sqlite3_libs
-        puro flutter build apk --release --split-per-abi --no-tree-shake-icons --target-platform android-arm64 --split-debug-info=build/symbols/android
+        puro flutter build apk --release --split-per-abi --no-tree-shake-icons --target-platform android-arm64 --split-debug-info=build/symbols/android --dart-define=PFM_BUILD="$BUILD_ID"
     fi
     
     # 查找所有生成的APK文件（split-per-abi 会生成多个）
@@ -584,7 +542,7 @@ build_android_appbundle() {
     require_release_signing "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || return 1
 
     # 执行构建
-    puro flutter build appbundle --release --no-tree-shake-icons
+    puro flutter build appbundle --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
     
     # 查找生成的AAB文件
     local DEFAULT_AAB="build/app/outputs/bundle/release/app-release.aab"
@@ -620,7 +578,7 @@ build_ios() {
     echo "📱 构建 iOS..."
     
     # 执行构建
-    puro flutter build ios --release --no-tree-shake-icons
+    puro flutter build ios --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
     
     if [[ -d "build/ios/iphoneos" ]]; then
         echo "✅ iOS构建完成"
@@ -651,7 +609,7 @@ build_windows() {
     export CL="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
     
     # 执行构建
-    puro flutter build windows --release --no-tree-shake-icons
+    puro flutter build windows --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
     
     if [[ -d "build/windows/x64/runner/Release" ]]; then
         echo "✅ Windows构建完成"
@@ -680,7 +638,7 @@ build_macos() {
     echo "🍎 构建 macOS..."
     
     # 执行构建
-    puro flutter build macos --release --no-tree-shake-icons
+    puro flutter build macos --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
     
     if [[ -d "build/macos/Build/Products/Release" ]]; then
         echo "✅ macOS构建完成"
@@ -705,7 +663,7 @@ build_linux() {
     fi
 
     # 执行构建
-    puro flutter build linux --release --no-tree-shake-icons
+    puro flutter build linux --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
 
     if [[ -d "build/linux/x64/release/bundle" ]]; then
         echo "✅ Linux构建完成"
@@ -735,7 +693,7 @@ build_web() {
     echo "🌐 构建 Web..."
     
     # 执行构建
-    puro flutter build web --release --no-tree-shake-icons
+    puro flutter build web --release --no-tree-shake-icons --dart-define=PFM_BUILD="$BUILD_ID"
     
     if [[ -d "build/web" ]]; then
         echo "✅ Web构建完成"
@@ -781,10 +739,10 @@ case "$ACTION" in
         ensure_sqlite3_libs
         if [[ -n "$2" ]]; then
             echo "🚀 运行 Flutter 应用（设备: $2）..."
-            puro flutter run -d "$2"
+            puro flutter run -d "$2" --dart-define=PFM_BUILD="$BUILD_ID"
         else
             echo "🚀 运行 Flutter 应用..."
-            puro flutter run
+            puro flutter run --dart-define=PFM_BUILD="$BUILD_ID"
         fi
         ;;
 
@@ -846,29 +804,25 @@ case "$ACTION" in
     build)
         check_flutter_commands
         update_build_number
-        replace_commit_hash_in_about
         puro flutter pub get
         # 构建失败也要恢复文件，用 trap 确保清理
-        trap 'restore_build_number; restore_commit_hash_in_about' EXIT
+        trap 'restore_build_number' EXIT
         run_flutter_build "$PLATFORM"
         restore_build_number
-        restore_commit_hash_in_about
         trap - EXIT
         ;;
 
     all|"")
         check_flutter_commands
         update_build_number
-        replace_commit_hash_in_about
         puro flutter pub get
         generate_icons
         generate_splash
         run_build_runner
         # 构建失败也要恢复文件，用 trap 确保清理
-        trap 'restore_build_number; restore_commit_hash_in_about' EXIT
+        trap 'restore_build_number' EXIT
         run_flutter_build "$PLATFORM"
         restore_build_number
-        restore_commit_hash_in_about
         trap - EXIT
         echo "✅ 所有构建任务已完成！"
         ;;

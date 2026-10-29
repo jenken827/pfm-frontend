@@ -154,7 +154,8 @@ jobs:
         run: |
           flutter build apk --release --split-per-abi --no-tree-shake-icons \
             --target-platform android-arm64 \
-            --split-debug-info=build/symbols/android
+            --split-debug-info=build/symbols/android \
+            --dart-define=PFM_BUILD=${{ needs.meta.outputs.build_date }}-${{ needs.meta.outputs.short }}
 
       - name: 校验签名与产物
         shell: bash
@@ -237,7 +238,9 @@ jobs:
 
       - name: 构建
         shell: bash
-        run: flutter build windows --release --no-tree-shake-icons
+        run: |
+          flutter build windows --release --no-tree-shake-icons \
+            --dart-define=PFM_BUILD=${{ needs.meta.outputs.build_date }}-${{ needs.meta.outputs.short }}
 
       - name: 打包 zip
         shell: bash

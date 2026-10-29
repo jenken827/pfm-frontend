@@ -414,7 +414,6 @@
     "theme_color": "Theme Color",
     "about_title": "About",
     "about_version": "Version",
-    "about_buildNumber": "Build Number",
     "about_packageName": "Package Name",
     "about_appInfo": "App Info",
     "about_appName": "App Name",

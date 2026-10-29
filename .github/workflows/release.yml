@@ -1,0 +1,366 @@
+name: 发布
+
+# 推 v* tag：构建 Android（arm64-v8a）与 Windows（x64）→ 建 GitHub Release 并上传资产。
+# tag 必须等于 v<pubspec.yaml 的版本>（如 v1.2.3），否则直接失败。
+#
+# 手动触发（Actions 页面 Run workflow）：只构建、不发布，用来先验证流程能跑通；
+# 填了 tag 并按 tag 校验，留空则拿当前分支构建。
+#
+# 需要的仓库 Secret：
+#   ANDROID_KEYSTORE_BASE64     pfm-release.jks 的 base64（`base64 -w0 pfm-release.jks`）
+#   ANDROID_KEYSTORE_PASSWORD   keystore 口令（PKCS12 只有一个口令）
+# 缺了第一步就失败——Android 只认「同包名 + 同签名」的覆盖安装，用 debug 密钥签出来的包
+# 构建能成功、用户装不上，所以这里不做任何回退。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的 tag（v<version>）；留空则只构建不发布
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.6'
+  KEY_ALIAS: pfm-release
+  # 发布密钥证书的 SHA-256。换密钥要同步改这里：故意让对不上就失败。
+  ANDROID_CERT_SHA256: '9F:39:C3:FC:A5:51:E4:00:71:D9:4B:DD:66:AF:42:46:C8:80:3E:E8:3E:79:95:F2:CE:D5:9E:7C:04:87:65:01'
+
+jobs:
+  meta:
+    name: 解析版本
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      build_date: ${{ steps.v.outputs.build_date }}
+      short: ${{ steps.v.outputs.short }}
+      tag: ${{ steps.v.outputs.tag }}
+      dry_run: ${{ steps.v.outputs.dry_run }}
+      name: ${{ steps.v.outputs.name }}
+    steps:
+      - name: 检出本仓库
+        uses: actions/checkout@v4
+
+      - name: 计算版本与产物名
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml)
+          if [ -z "$version" ]; then
+            echo "::error::pubspec.yaml 里读不到 x.y.z 形式的版本号"
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+            dry=false
+          else
+            tag="${{ github.event.inputs.tag }}"
+            if [ -z "$tag" ]; then dry=true; else dry=false; fi
+          fi
+
+          if [ "$dry" = "false" ] && [ "v${version}" != "${tag}" ]; then
+            echo "::error::tag ${tag} 与 pubspec.yaml 的版本 ${version} 不一致（应为 v${version}）"
+            exit 1
+          fi
+
+          build_date=$(date -u +%Y%m%d)
+          short=$(git rev-parse --short=8 HEAD)
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${build_date}" >> "$GITHUB_OUTPUT"
+          echo "short=${short}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${dry}" >> "$GITHUB_OUTPUT"
+          # 交付包命名：<项目>_<版本>_<YYYYMMDD>-<短commit8>_<平台>
+          echo "name=pfm_${version}_${build_date}-${short}" >> "$GITHUB_OUTPUT"
+          echo "版本 ${version}，构建日期 ${build_date}，commit ${short}，tag=${tag}，dry_run=${dry}"
+
+  android:
+    name: Android（arm64-v8a）
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出本仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: 安装发布签名密钥
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ] || [ -z "${STORE_PASSWORD}" ]; then
+            echo "::error::缺少 Secret ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD"
+            exit 1
+          fi
+          printf '%s' "${KEYSTORE_B64}" | base64 -d > android/pfm-release.jks
+          chmod 600 android/pfm-release.jks
+          {
+            echo "storePassword=${STORE_PASSWORD}"
+            echo "keyPassword=${STORE_PASSWORD}"
+            echo "keyAlias=${KEY_ALIAS}"
+            echo "storeFile=../pfm-release.jks"
+          } > android/key.properties
+          chmod 600 android/key.properties
+
+      - name: 依赖与代码生成
+        shell: bash
+        run: |
+          flutter pub get
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      - name: 对齐版本号
+        shell: bash
+        # 与本地 dev.sh 一致：versionName 用 tag 的版本，versionCode 用构建日期
+        run: |
+          sed -i "s/^version: .*/version: ${{ needs.meta.outputs.version }}+${{ needs.meta.outputs.build_date }}/" pubspec.yaml
+          grep -E '^version: ' pubspec.yaml
+
+      - name: 可选：BLAKE3 原生库
+        # 缺 Rust / NDK 就跳过，App 会退回纯 Dart 哈希，功能不受影响
+        continue-on-error: true
+        shell: bash
+        run: bash native/build_native.sh android
+
+      - name: 构建 APK
+        shell: bash
+        run: |
+          flutter build apk --release --split-per-abi --no-tree-shake-icons \
+            --target-platform android-arm64 \
+            --split-debug-info=build/symbols/android
+
+      - name: 校验签名与产物
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          ls -l "$apk"
+
+          sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          apksigner=$(ls "$sdk"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" | tee certs.txt
+          # apksigner 打的是不带冒号的十六进制，先把常量规整成同一种写法再比
+          expected=$(printf '%s' "${ANDROID_CERT_SHA256}" | tr -d ':' | tr 'A-F' 'a-f')
+          if ! grep -qi "SHA-256 digest: ${expected}" certs.txt; then
+            echo "::error::签名证书 SHA-256 与预期不符（密钥或 alias 用错了？）"
+            exit 1
+          fi
+
+          # 符号信息单独落盘（--split-debug-info），源码绝对路径不许进包。
+          # 别按 "/home/" 泛查：被依赖的预编译库（如 libmpv）自带上游的 ffmpeg 配置串、源码里
+          # 也有 pages/home/ 这样的 package: URI，都会误报。包内另有且仅有 Flutter 生成的
+          # .dart_tool/flutter_build/dart_plugin_registrant.dart 一个绝对 URI，属已知情况。
+          hits=$(unzip -p "$apk" | strings -a | grep -F "${GITHUB_WORKSPACE}" || true)
+          if printf '%s' "${hits}" | grep -qF "${GITHUB_WORKSPACE}/lib/"; then
+            echo "::error::APK 里含源码绝对路径（--split-debug-info 没生效？）："
+            printf '%s\n' "${hits}" | grep -F "${GITHUB_WORKSPACE}/lib/" | head -5
+            exit 1
+          fi
+          if [ -n "${hits}" ]; then
+            echo "提示：包内还有以下构建目录路径（Flutter 生成物，已知且无法去除）："
+            printf '%s\n' "${hits}" | head -5
+          fi
+
+      - name: 按交付约定改名
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            "dist/${{ needs.meta.outputs.name }}_arm64-v8a.apk"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    name: Windows（x64）
+    needs: meta
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 检出本仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: 依赖与代码生成
+        shell: bash
+        run: |
+          flutter pub get
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      - name: 对齐版本号
+        shell: bash
+        run: |
+          sed -i "s/^version: .*/version: ${{ needs.meta.outputs.version }}+${{ needs.meta.outputs.build_date }}/" pubspec.yaml
+          grep -E '^version: ' pubspec.yaml
+
+      - name: 构建
+        shell: bash
+        run: flutter build windows --release --no-tree-shake-icons
+
+      - name: 打包 zip
+        shell: bash
+        # 与本地 dev.sh 一致：zip 里保留 Release/ 前缀
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ZIP="${{ needs.meta.outputs.name }}_windows-x64.zip" python - <<'PY'
+          import os, zipfile
+          root = 'build/windows/x64/runner/Release'
+          if not os.path.isdir(root):
+              raise SystemExit(f'找不到构建输出目录: {root}')
+          out = os.path.join('dist', os.environ['ZIP'])
+          with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
+              for base, _, files in os.walk(root):
+                  for f in files:
+                      p = os.path.join(base, f)
+                      z.write(p, os.path.join('Release', os.path.relpath(p, root)))
+          print(out, os.path.getsize(out), 'bytes')
+          PY
+
+      - name: 打安装包（exe）
+        shell: bash
+        # 便携版（zip）之外再出一个 Inno Setup 安装包：单文件 exe，双击装到当前用户目录。
+        run: |
+          set -euo pipefail
+          # Git Bash 会把 /D... 当成路径改写掉（ISCC 于是看到多个脚本名），必须先关掉这层转换
+          export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+          iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -x "$iscc" ]; then
+            echo "::error::找不到 Inno Setup 的 ISCC.exe"
+            exit 1
+          fi
+          mkdir -p dist
+          "$iscc" \
+            "/DAppVersion=${{ needs.meta.outputs.version }}" \
+            "/DRepoRoot=$(cygpath -w "$PWD")" \
+            "/DSourceDir=$(cygpath -w "$PWD/build/windows/x64/runner/Release")" \
+            "/DOutputDir=$(cygpath -w "$PWD/dist")" \
+            "/DOutputBase=${{ needs.meta.outputs.name }}_windows-x64-setup" \
+            windows/installer/pfm.iss
+          ls -l dist
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: 发布 Release
+    needs: [meta, android, windows]
+    if: needs.meta.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出本仓库
+        uses: actions/checkout@v4
+        with:
+          # 发布说明按 tag 算变更范围
+          fetch-depth: 0
+
+      - name: 汇总各平台产物
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          merge-multiple: true
+          path: dist
+
+      - name: 生成校验和
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum ./* > checksums.txt && cat checksums.txt)
+
+      - name: 从提交历史生成发布说明
+        shell: bash
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          prev=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          if [ -n "$prev" ]; then
+            range="${prev}..${TAG}"
+            header="自 ${prev} 起的变更"
+          else
+            range="${TAG}"
+            header="首个版本"
+          fi
+          {
+            echo "## ${header}"
+            echo
+            git log --no-merges --pretty='- %s' "$range"
+            echo
+            echo "**Android**：\`${{ needs.meta.outputs.name }}_arm64-v8a.apk\`（arm64-v8a，arm64 手机直接安装）"
+            echo "**Windows（安装包）**：\`${{ needs.meta.outputs.name }}_windows-x64-setup.exe\`（双击安装，装到当前用户目录）"
+            echo "**Windows（便携版）**：\`${{ needs.meta.outputs.name }}_windows-x64.zip\`（解压后运行 \`Release/pfm.exe\`）"
+            echo
+            echo "签名证书 SHA-256：\`${ANDROID_CERT_SHA256}\`"
+            if [ -n "$prev" ]; then
+              echo
+              echo "**完整对比**：https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${TAG}"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: 创建或更新 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # 重跑：同名资产覆盖、说明重写；--draft=false 防止之前被删过 tag 留下 draft
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file release-notes.md --draft=false --latest
+          else
+            gh release create "$TAG" dist/* \
+              --title "$TAG" \
+              --notes-file release-notes.md \
+              --latest \
+              --verify-tag
+          fi

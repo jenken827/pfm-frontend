@@ -1,8 +1,7 @@
-# pfm-frontend（云坞 / CloudDock）
+# 云坞（CloudDock）
 
-云坞（英文名 CloudDock）是 pfm 的 Flutter 客户端（Android / iOS / Windows / macOS / Linux / Web），
-以及随客户端分发的 BLAKE3 原生加速库。仓库名、包名（`com.shifangyuan.pfm`）保持 `pfm` 不变——
-改名只影响用户看到的名字。
+pfm 的 Flutter 客户端（Android / iOS / Windows / macOS / Linux / Web），以及随客户端分发的
+BLAKE3 原生加速库。
 
 后端在 [`pfm`](https://github.com/jenken827/pfm)（Go，REST/JSON）；应用侧 protobuf 数据结构
 在 [`pfm-proto`](https://github.com/jenken827/pfm-proto)，以 `package:pfm_proto` 的形式依赖。
@@ -57,8 +56,7 @@ android/pfm-release.jks     # 具体文件名由 key.properties 的 storeFile �
 ```
 
 缺 `key.properties` 时 `./dev.sh build android` 会直接报错退出（`build.gradle.kts` 在缺文件时
-会退回 debug 签名，构建能成功但装不上，所以这里挡一道）。密钥与口令的保管方式见本机文档仓库
-（与本项目同名的那份）。
+会退回 debug 签名，构建能成功但装不上）。
 
 ### 发布（GitHub Actions）
 
@@ -80,15 +78,14 @@ pfm_<版本>_<YYYYMMDD>-<短commit8>_windows-x64.zip        # Windows 便携版�
 
 要点：
 
-- Windows 产物有两个：`setup.exe` 是 Inno Setup 安装包（单文件、免管理员），`zip` 是便携版；
-  安装包脚本在 `windows/installer/clouddock.iss`，`AppId` 发布后不能再改（否则旧版卸不掉）。
+- Windows 产物有两个：`setup.exe` 是安装包（单文件、免管理员权限），`zip` 是便携版；
+  安装包脚本在 `windows/installer/clouddock.iss`。
 - tag 与 `pubspec.yaml` 的版本对不上会直接失败；版本号里的 `+<构建号>` 由 CI 用当天日期填，
   与 `./dev.sh` 一致。
 - Android 用仓库 Secret 里的发布密钥签名，**缺 Secret 就失败**（不会退回 debug 签名）；构建后
   还会核对 `apksigner` 打出的证书 SHA-256，对不上就中断。
 - 需要两个 Secret：`ANDROID_KEYSTORE_BASE64`（`base64 -w0 pfm-release.jks` 的结果）与
   `ANDROID_KEYSTORE_PASSWORD`（keystore 口令）。
-- 首次跑或改完流程，先在 Actions 页面手动 Run workflow（**只构建、不发布**）验一遍，绿了再打 tag。
 
 ## 与后端 / proto 的关系
 

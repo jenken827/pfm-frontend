@@ -1105,11 +1105,11 @@ packages:
     dependency: "direct main"
     description:
       path: dart
-      ref: "v0.3.1"
-      resolved-ref: "5094aad1b1386d68e58305a66a163768179d23e8"
+      ref: "v0.5.0"
+      resolved-ref: caf8599614e5a408eff35c6d8b5e2fa2f2e2da26
       url: "https://github.com/jenken827/pfm-proto.git"
     source: git
-    version: "0.3.1"
+    version: "0.5.0"
   photo_manager:
     dependency: "direct main"
     description:

@@ -210,6 +210,16 @@ class _SettingPageState extends State<SettingPage> {
                     onTap: () => const WebdavAccountRoute().push(context),
                   ),
                   const Divider(height: 1, indent: 56),
+                  // MCP 令牌：给 AI 客户端分配只读/读写令牌 + 可见目录（普通用户自助）
+                  _SettingsTile(
+                    icon: Icons.smart_toy_outlined,
+                    iconBackground: PfmColors.primarySurface,
+                    iconColor: PfmColors.primary,
+                    title: al.settings_mcpTokens,
+                    subtitle: al.settings_mcpTokensSubtitle,
+                    onTap: () => const McpTokenRoute().push(context),
+                  ),
+                  const Divider(height: 1, indent: 56),
                   if (_isAdmin) ...[
                     _SettingsTile(
                       icon: Icons.storage_outlined,

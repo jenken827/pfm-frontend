@@ -13,6 +13,7 @@ import 'package:pfm_proto/native/download.pb.dart';
 import 'package:pfm_proto/native/enum.pbenum.dart';
 import 'package:pfm_proto/native/enum.pb.dart';
 import 'package:pfm_proto/native/file.pb.dart';
+import 'package:pfm_proto/native/mcp.pb.dart';
 import 'package:pfm_proto/native/permission.pb.dart';
 import 'package:pfm_proto/native/provider.pb.dart';
 import 'package:pfm_proto/native/upload.pb.dart';
@@ -2813,6 +2814,98 @@ class FmRepository {
       return ApiResult(success: false, message: _handleDioError(e));
     } catch (e) {
       _logger.error('重置 WebDAV 账号密码失败: $e');
+      return ApiResult(success: false, message: e.toString());
+    }
+  }
+
+  // ---------------- MCP 令牌 ----------------
+
+  /// 列出 MCP 令牌（只有本人的；服务端不下发 token_hash）
+  Future<ApiResult<ListMcpTokensResp>> listMcpTokens() async {
+    try {
+      final response = await _dio.post(
+        '$_baseUrl/api/mcp/token/list',
+        data: ListMcpTokensReq().toProto3Json(),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final respData = extractRespData<ListMcpTokensResp>(
+        data,
+        ListMcpTokensResp(),
+      );
+      return ApiResult(success: true, data: respData);
+    } on TokenInvalidException {
+      await _handleTokenInvalid();
+      return ApiResult(success: false, message: '登录已过期，请重新登录');
+    } on DioException catch (e) {
+      _logger.error('获取 MCP 令牌列表失败: ${e.message}');
+      return ApiResult(success: false, message: _handleDioError(e));
+    } catch (e) {
+      _logger.error('获取 MCP 令牌列表失败: $e');
+      return ApiResult(success: false, message: e.toString());
+    }
+  }
+
+  /// 签发 MCP 令牌
+  ///
+  /// [rootFolderId] 为空 = 令牌可见整棵树；[expiresInDays] 为 0 = 不过期。
+  /// 返回的明文仅此一次可见，服务端只存 sha256。
+  Future<ApiResult<CreateMcpTokenResp>> createMcpToken({
+    required String name,
+    bool allowWrite = false,
+    String rootFolderId = '',
+    int expiresInDays = 0,
+  }) async {
+    try {
+      final req = CreateMcpTokenReq(
+        name: name.trim(),
+        allowWrite: allowWrite,
+        expiresInDays: expiresInDays,
+      );
+      if (rootFolderId.isNotEmpty) req.rootFolderId = rootFolderId;
+
+      final response = await _dio.post(
+        '$_baseUrl/api/mcp/token/create',
+        data: req.toProto3Json(),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final respData = extractRespData<CreateMcpTokenResp>(
+        data,
+        CreateMcpTokenResp(),
+      );
+      return ApiResult(success: true, data: respData);
+    } on TokenInvalidException {
+      await _handleTokenInvalid();
+      return ApiResult(success: false, message: '登录已过期，请重新登录');
+    } on DioException catch (e) {
+      _logger.error('签发 MCP 令牌失败: ${e.message}');
+      return ApiResult(success: false, message: _handleDioError(e));
+    } catch (e) {
+      _logger.error('签发 MCP 令牌失败: $e');
+      return ApiResult(success: false, message: e.toString());
+    }
+  }
+
+  /// 撤销 MCP 令牌（服务端删行，立即生效）
+  Future<ApiResult<void>> revokeMcpToken({required int id}) async {
+    try {
+      final response = await _dio.post(
+        '$_baseUrl/api/mcp/token/revoke',
+        data: (RevokeMcpTokenReq(id: id)).toProto3Json(),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      extractRespData<Empty>(data, Empty());
+      return ApiResult(success: true);
+    } on TokenInvalidException {
+      await _handleTokenInvalid();
+      return ApiResult(success: false, message: '登录已过期，请重新登录');
+    } on DioException catch (e) {
+      _logger.error('撤销 MCP 令牌失败: ${e.message}');
+      return ApiResult(success: false, message: _handleDioError(e));
+    } catch (e) {
+      _logger.error('撤销 MCP 令牌失败: $e');
       return ApiResult(success: false, message: e.toString());
     }
   }

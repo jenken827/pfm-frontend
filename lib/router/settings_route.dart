@@ -9,6 +9,7 @@ import '../pages/settings/album_backup_page.dart';
 import '../pages/settings/contact_backup_page.dart';
 import '../pages/settings/permission_management_page.dart';
 import '../pages/settings/profile_edit_page.dart';
+import '../pages/settings/mcp_token_page.dart';
 import '../pages/settings/webdav_account_page.dart';
 
 part 'settings_route.g.dart';
@@ -28,6 +29,7 @@ part 'settings_route.g.dart';
         TypedGoRoute<LogRoute>(path: 'logs'),
         TypedGoRoute<ProfileEditRoute>(path: 'profile'),
         TypedGoRoute<WebdavAccountRoute>(path: 'webdav-accounts'),
+        TypedGoRoute<McpTokenRoute>(path: 'mcp-tokens'),
       ],
 )
 @immutable
@@ -149,5 +151,15 @@ class WebdavAccountRoute extends GoRouteData with $WebdavAccountRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) {
     return const WebdavAccountPage();
+  }
+}
+
+/// MCP 令牌管理路由
+class McpTokenRoute extends GoRouteData with $McpTokenRoute {
+  const McpTokenRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    return const McpTokenPage();
   }
 }
